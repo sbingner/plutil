@@ -1,0 +1,6 @@
+[submodule "json-framework"]
+	path = json-framework
+	url = git@github.com:stig/json-framework.git
+[submodule "iphone-3.0-cookbook-"]
+	path = iphone-3.0-cookbook-
+	url = git@github.com:erica/iphone-3.0-cookbook-.git
