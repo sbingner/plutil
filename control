@@ -1,9 +1,9 @@
 Package: com.bingner.plutil
 Name: plutil
-Depends: 
-Version: 0.0.1
+Depends: firmware (>=3.0)
+Version: 0.0.2
 Architecture: iphoneos-arm
-Description: An awesome tool of some sort!!
+Description: plutil as from erica sadun
 Maintainer: Samuel Bingner
 Author: Samuel Bingner
 Section: System
