@@ -1,3 +1,5 @@
+/* Reverse engineered from Erica Sadun's plutil */
+
 #import <objc/runtime.h>
 #import <Foundation/Foundation.h>
 #import "json-framework/Classes/NSObject+SBJson.h"
