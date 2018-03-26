@@ -11,24 +11,23 @@ const char *program_name;
 bool useVerbose;
 bool useDebug;
 
-void WriteMyPropertyListToFile(NSDictionary* a1, NSURL* url)
+void WriteMyPropertyListToFile(NSDictionary* plist, NSURL* url)
 {
 	SInt32 error;
 	CFDataRef data;
 
-	data = CFPropertyListCreateXMLData(kCFAllocatorDefault, a1);
+	data = CFPropertyListCreateXMLData(kCFAllocatorDefault, plist);
 	CFURLWriteDataAndPropertiesToResource((CFURLRef)url, data, NULL, &error);
 	CFRelease(data);
 }
 
-void WriteMyPropertyListToStdOut(CFPropertyListRef a1)
+void WriteMyPropertyListToStdOut(CFPropertyListRef plist)
 {
-	id v2 = [NSURL fileURLWithPath:@"/dev/stdout"];
-	CFWriteStreamRef v3 = CFWriteStreamCreateWithFile(0, (CFURLRef)v2);
-	CFWriteStreamOpen(v3);
-	CFPropertyListWriteToStream(a1, v3, 100, 0);
-	CFWriteStreamClose(v3);
-	CFRelease(v3);
+	CFWriteStreamRef writeStream = CFWriteStreamCreateWithFile(kCFAllocatorDefault, (CFURLRef)[NSURL fileURLWithPath:@"/dev/stdout"]);
+	CFWriteStreamOpen(writeStream);
+	CFPropertyListWriteToStream(plist, writeStream, kCFPropertyListXMLFormat_v1_0, NULL);
+	CFWriteStreamClose(writeStream);
+	CFRelease(writeStream);
 }
 
 Boolean WriteMyPropertyListToXMLFile(NSData *data, NSURL *url)
@@ -42,30 +41,27 @@ void WriteMyPropertyListToBinaryFile(CFPropertyListRef plist, NSURL *url)
 {
 	CFWriteStreamRef stream;
 
-	stream = CFWriteStreamCreateWithFile(0, (CFURLRef)url);
+	stream = CFWriteStreamCreateWithFile(kCFAllocatorDefault, (CFURLRef)url);
 	CFWriteStreamOpen(stream);
-	CFPropertyListWriteToStream(plist, stream, 200, 0);
+	CFPropertyListWriteToStream(plist, stream, kCFPropertyListBinaryFormat_v1_0, NULL);
 	CFWriteStreamClose(stream);
 	CFRelease(stream);
 }
 
 CFPropertyListRef readPropertyList(NSString *path)
 {
-	CFPropertyListRef plist;
 	CFStringRef errorString;
 
 	path = [path stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
 	if ([[NSFileManager defaultManager] fileExistsAtPath:path])
 	{
 		NSData *plistData = [NSData dataWithContentsOfFile:path];
-		plist = CFPropertyListCreateFromXMLData(kCFAllocatorDefault, (CFDataRef)plistData, 1, &errorString);
-	}
-	else
+		return CFPropertyListCreateFromXMLData(kCFAllocatorDefault, (CFDataRef)plistData, kCFPropertyListMutableContainers, &errorString);
+	} else
 	{
 		fprintf(stderr, "Error: File not found at path %s\n", [path UTF8String]);
-		plist = NULL;
+		return NULL;
 	}
-	return plist;
 }
 
 void showPath(NSString *path)
@@ -81,13 +77,13 @@ void dump(NSString *path)
 	{
 		if ( useVerbose )
 			showPath(path);
+
 		WriteMyPropertyListToStdOut(plist);
 		if ( useVerbose )
 			putchar('\n');
 	}
 }
 
-//----- (00006B84) --------------------------------------------------------
 void show(NSString *a1)
 {
 	CFPropertyListRef result; // r0
@@ -97,90 +93,87 @@ void show(NSString *a1)
 	{
 		if ( useVerbose )
 			showPath(a1);
+
 		CFShow((CFStringRef)[(id)result description]);
 		if ( useVerbose )
 			putchar('\n');
 	}
 }
 
-//----- (00006C2C) --------------------------------------------------------
-CFTypeRef descend(id a1, id a2)
+CFTypeRef descend(id container, NSMutableArray *path)
 {
 
-	if ( ![a2 count] )
-		return (CFTypeRef)a1;
-	if ( ![a1 isKindOfClass:[NSDictionary class]] )
+	if ( ![path count] )
+		return (CFTypeRef)container;
+
+	if ( ![container isKindOfClass:[NSDictionary class]] )
 	{
-		if ( ![a1 isKindOfClass:[NSArray class]] )
+		if ( ![container isKindOfClass:[NSArray class]] )
 			return 0;
 	}
-	id v4 = [a2 objectAtIndex:0];
-	id v5 = [a1 objectForKey:v4];
-	NSMutableArray *v6 = [NSMutableArray arrayWithArray:a2];
-	[v6 removeObjectAtIndex:0];
-	return descend(v5, v6);
+	container = [container objectForKey:[path objectAtIndex:0]];
+	path = [NSMutableArray arrayWithArray:path];
+	[path removeObjectAtIndex:0];
+	return descend(container, path);
 }
 
-//----- (00006E30) --------------------------------------------------------
-void *objectOfType(NSString *a1, NSString *a2)
+id objectOfType(NSString *type, NSString *objectString)
 {
-	void *v12; // [sp+0h] [bp-18h]
-	void *v15; // [sp+Ch] [bp-Ch]
+	id theObject;
 
-	if ( !a2 )
-		return 0;
-	if ( !a1 )
-		return 0;
+	if ( !objectString )
+		return nil;
+	if ( !type )
+		return nil;
 
-	if ( ![a1 caseInsensitiveCompare:@"string"] )
-		return a2;
-	if ( ![a1 caseInsensitiveCompare:@"int"] )
-		v12 = [NSNumber numberWithInt:[a2 intValue]];
-	else if ( ![a1 caseInsensitiveCompare: @"integer"] )
-		v12 = [NSNumber numberWithInt:[a2 intValue]];
-	else if ( ![a1 caseInsensitiveCompare: @"float"] )
-		v12 = [NSNumber numberWithFloat:[a2 floatValue]];
-	else if ( ![a1 caseInsensitiveCompare: @"real"] )
-		v12 = [NSNumber numberWithFloat:[a2 floatValue]];
-	else if ( ![a1 caseInsensitiveCompare: @"double"] )
-		v12 = [NSNumber numberWithFloat:[a2 floatValue]];
-	else if ( ![a1 caseInsensitiveCompare: @"bool"] )
-		v12 = [NSNumber numberWithBool:[a2 boolValue]];
-	else if ( ![a1 caseInsensitiveCompare: @"boolean"] )
-		v12 = [NSNumber numberWithBool:[a2 boolValue]];
-	else if ( ![a1 caseInsensitiveCompare: @"data"] )
-		v12 = [a2 dataUsingEncoding:4];
-	else if ( ![a1 caseInsensitiveCompare: @"date"] )
-		v12 = [NSDate dateWithNaturalLanguageString:a2];
-	else if ( ![a1 caseInsensitiveCompare: @"json"] )
+	if ( ![type caseInsensitiveCompare:@"string"] )
+		return objectString;
+	if ( ![type caseInsensitiveCompare:@"int"] )
+		theObject = [NSNumber numberWithInt:[objectString intValue]];
+	else if ( ![type caseInsensitiveCompare: @"integer"] )
+		theObject = [NSNumber numberWithInt:[objectString intValue]];
+	else if ( ![type caseInsensitiveCompare: @"float"] )
+		theObject = [NSNumber numberWithFloat:[objectString floatValue]];
+	else if ( ![type caseInsensitiveCompare: @"real"] )
+		theObject = [NSNumber numberWithFloat:[objectString floatValue]];
+	else if ( ![type caseInsensitiveCompare: @"double"] )
+		theObject = [NSNumber numberWithFloat:[objectString floatValue]];
+	else if ( ![type caseInsensitiveCompare: @"bool"] )
+		theObject = [NSNumber numberWithBool:[objectString boolValue]];
+	else if ( ![type caseInsensitiveCompare: @"boolean"] )
+		theObject = [NSNumber numberWithBool:[objectString boolValue]];
+	else if ( ![type caseInsensitiveCompare: @"data"] )
+		theObject = [objectString dataUsingEncoding:4];
+	else if ( ![type caseInsensitiveCompare: @"date"] )
+		theObject = [NSDate dateWithNaturalLanguageString:objectString];
+	else if ( ![type caseInsensitiveCompare: @"json"] )
 	{
-		v15 = [a2 JSONValue];
-		if ( v15 )
+		id jsonObj = [objectString JSONValue];
+		if ( jsonObj )
 		{
-			v12 = v15;
+			theObject = jsonObj;
 		}
 		else
 		{
 			fwrite("Error: could not convert json setvalue argument\n", 1u, 0x30u, stderr);
-			fprintf(stderr, "       %s\n", [a2 UTF8String]);
-			v12 = 0;
+			fprintf(stderr, "       %s\n", [objectString UTF8String]);
+			theObject = nil;
 		}
 	}
 	else
-		v12 = 0;
-	return v12;
+		theObject = nil;
+	return theObject;
 }
 
-//----- (00007514) --------------------------------------------------------
-NSString *fetchArg(NSString *a1)
+NSString *fetchArg(NSString *arg)
 {
 
-	if ( !a1 )
+	if ( !arg )
 	{
-		fwrite("Internal Error: No argument supplied to fetchArg. Bailing.\n", 1u, 0x3Bu, stderr);
+		fprintf(stderr, "Internal Error: No argument supplied to fetchArg. Bailing.\n");
 		exit(-1);
 	}
-	id arg = [[NSUserDefaults standardUserDefaults] objectForKey:[a1 substringFromIndex:1]];
+	arg = [[NSUserDefaults standardUserDefaults] objectForKey:[arg substringFromIndex:1]];
 	if ( !arg )
 	{
 		fprintf(stderr, "You must supply an argument to -. Bailing.\n"); 
@@ -265,34 +258,15 @@ int full()
 	return puts("  -arrayadd            Add value to array at keypath");
 }
 
-//----- (00007BC8) --------------------------------------------------------
-void NSRangeMake(NSRange *range, NSUInteger a2, NSUInteger a3)
-{
-	*range = NSMakeRange(a2, a3);
-}
-
-//----- (00007C00) --------------------------------------------------------
 int main(int argc, const char **argv, const char **envp)
 {
-	NSError *v167=nil; // [sp+D4h] [bp-570h]
-	int numArgsUsed=0; // [sp+F0h] [bp-554h]
-	int v175=0; // [sp+F4h] [bp-550h]
-	bool v176=false; // [sp+FAh] [bp-54Ah]
-	bool v177=false; // [sp+FBh] [bp-549h]
-	NSString *rmArg=nil; // [sp+FCh] [bp-548h]
-	void *v179=nil; // [sp+100h] [bp-544h]
-	char v180=0; // [sp+107h] [bp-53Dh]
-	void *v181=nil; // [sp+108h] [bp-53Ch]
-	NSString *v182; // [sp+10Ch] [bp-538h]
-	char v186=0; // [sp+11Bh] [bp-529h]
-	void *v199=nil; // [sp+188h] [bp-4BCh]
-	int v200=0; // [sp+18Ch] [bp-4B8h]
-	id v325=nil; // [sp+614h] [bp-30h]
-	id v326=nil; // [sp+618h] [bp-2Ch]
-	id v327=nil; // [sp+61Ch] [bp-28h]
-	id v329=nil; // [sp+624h] [bp-20h]
-	id v330=nil; // [sp+628h] [bp-1Ch]
-	id v332=nil; // [sp+630h] [bp-14h]
+	int plistFormat=0;
+	bool isSetting=false;
+	bool isRemoving=false;
+	NSString *rmArg=nil;
+	id objectArg=nil;
+	bool addingArray=false;
+	NSString *objectType;
 
 	bool errorOut=false;
 	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
@@ -305,10 +279,10 @@ int main(int argc, const char **argv, const char **envp)
 	NSArray *args = [[NSProcessInfo processInfo] arguments];
 	NSPredicate *pred = [NSPredicate predicateWithFormat:@"SELF beginswith '-'"];
 	NSArray *dashedArgs = [args filteredArrayUsingPredicate:pred];
-	numArgsUsed = 1;
+	int numArgsUsed = 1;
 	useDebug = false;
 	useVerbose = false;
-	NSMutableArray *keyArray = [NSMutableArray array];
+	NSMutableArray *keyPath = [NSMutableArray array];
 
 	for (NSString *argument in dashedArgs) {
 		if ( ![argument caseInsensitiveCompare:@"-help"] )
@@ -324,56 +298,56 @@ int main(int argc, const char **argv, const char **envp)
 		if ( ![argument caseInsensitiveCompare:@"-verbose"]
 				|| ![argument caseInsensitiveCompare:@"-v"] )
 		{
-			useVerbose = 1;
+			useVerbose = true;
 			numArgsUsed++;
 		} else if ( ![argument caseInsensitiveCompare:@"-useDebug"] )
 		{
-			useDebug = 1;
-			useVerbose = 1;
+			useDebug = true;
+			useVerbose = true;
 			numArgsUsed++;
 		} else if ( ![argument caseInsensitiveCompare:@"-remove"] )
 		{
-			v177 = 1;
+			isRemoving = true;
 			numArgsUsed++;
 		} else if ( ![argument caseInsensitiveCompare:@"-1"]
 				|| ![argument caseInsensitiveCompare:@"-yes"]
 				|| ![argument caseInsensitiveCompare:@"-true"] )
 		{
-			v176 = 1;
-			v182 = @"bool";
+			isSetting = true;
+			objectType = @"bool";
 			numArgsUsed++;
-			v179 = [NSNumber numberWithBool:true];
+			objectArg = [NSNumber numberWithBool:true];
 		} else if ( ![argument caseInsensitiveCompare:@"-0"]
 				|| ![argument caseInsensitiveCompare:@"-no"]
 				|| ![argument caseInsensitiveCompare:@"-false"] )
 		{
-			v176 = 1;
-			v182 = @"bool";
+			isSetting = true;
+			objectType = @"bool";
 			numArgsUsed++;
-			v179 = [NSNumber numberWithBool:false];
+			objectArg = [NSNumber numberWithBool:false];
 		} else if ( ![argument caseInsensitiveCompare:@"-now"] )
 		{
-			v176 = 1;
-			v182 = @"date";
+			isSetting = true;
+			objectType = @"date";
 			numArgsUsed++;
-			v179 = [NSDate date];
+			objectArg = [NSDate date];
 		} else if ( ![argument caseInsensitiveCompare:@"-array"] )
 		{
-			v176 = 1;
-			v182 = @"array";
+			isSetting = true;
+			objectType = @"array";
 			numArgsUsed++;
-			v179 = [NSArray array];
+			objectArg = [NSArray array];
 		} else if ( ![argument caseInsensitiveCompare:@"-dict"]
 				|| ![argument caseInsensitiveCompare:@"-dictionary"] )
 		{
-			v176 = 1;
-			v182 = @"dict";
+			isSetting = true;
+			objectType = @"dict";
 			numArgsUsed++;
-			v179 = [NSDictionary dictionary];
+			objectArg = [NSDictionary dictionary];
 		} else if ( ![argument caseInsensitiveCompare:@"-arrayadd"] )
 		{
-			v176 = 1;
-			v180 = 1;
+			isSetting = true;
+			addingArray = true;
 			numArgsUsed++;
 		} else if ( ![argument caseInsensitiveCompare:@"-dump"]
 				|| ![argument caseInsensitiveCompare:@"-show"]
@@ -387,15 +361,15 @@ int main(int argc, const char **argv, const char **envp)
 			numArgsUsed++;
 		} else if ( ![argument caseInsensitiveCompare:@"-xml"] )
 		{
-			v175 = 1;
+			plistFormat = 1;
 			numArgsUsed++;
 		} else if ( ![argument caseInsensitiveCompare:@"-binary"] )
 		{
-			v175 = 2;
+			plistFormat = 2;
 			numArgsUsed++;
 		} else if ( ![argument caseInsensitiveCompare:@"-json"] )
 		{
-			v175 = 3;
+			plistFormat = 3;
 			numArgsUsed++;
 		} else if ( ![argument caseInsensitiveCompare:@"-key"]
 				|| ![argument caseInsensitiveCompare:@"-set"] )
@@ -403,93 +377,87 @@ int main(int argc, const char **argv, const char **envp)
 			numArgsUsed += 2;
 		} else if ( ![argument caseInsensitiveCompare:@"-rmkey"] )
 		{
-			v177 = 1;
+			isRemoving = true;
 			rmArg = fetchArg(argument);
 			numArgsUsed += 2;
 		} else if ( ![argument caseInsensitiveCompare:@"-setvalue"]
 				|| ![argument caseInsensitiveCompare:@"-value"] )
 		{
-			v176 = 1;
+			isSetting = true;
 			numArgsUsed += 2;
 		} else if ( ![argument caseInsensitiveCompare:@"-type"] )
 		{
-			v182 = fetchArg(argument);
+			objectType = fetchArg(argument);
 			numArgsUsed += 2;
 		} else if ( ![argument caseInsensitiveCompare:@"-int"]
 				|| ![argument caseInsensitiveCompare:@"-integer"] )
 		{
-			v176 = 1;
-			v182 = @"int";
-			v179 = [NSNumber numberWithInt:[fetchArg(argument) intValue]];
+			isSetting = true;
+			objectType = @"int";
+			objectArg = [NSNumber numberWithInt:[fetchArg(argument) intValue]];
 			numArgsUsed += 2;
 		} else if ( ![argument caseInsensitiveCompare:@"-float"]
 				|| ![argument caseInsensitiveCompare:@"-double"]
 				|| ![argument caseInsensitiveCompare:@"-real"] )
 		{
-			v182 = @"float";
-			v176 = 1;
-			NSString *v9 = fetchArg(argument);
-			v199 = v9;
-			v179 = [NSNumber numberWithFloat:[v9 floatValue]];
+			objectType = @"float";
+			isSetting = true;
+			objectArg = [NSNumber numberWithFloat:[fetchArg(argument) floatValue]];
 			numArgsUsed += 2;
 		} else if ( ![argument caseInsensitiveCompare:@"-string"] )
 		{
-			v182 = @"string";
-			v176 = 1;
-			v179 = fetchArg(argument);
+			objectType = @"string";
+			isSetting = true;
+			objectArg = fetchArg(argument);
 			numArgsUsed += 2;
 		} else if ( ![argument caseInsensitiveCompare:@"-fromnow"]
 				|| ![argument caseInsensitiveCompare:@"-beforenow"] )
 		{
-			v176 = 1;
-			v182 = @"date";
-			NSString *v11 = fetchArg(argument);
-			v200 = [v11 integerValue];
+			isSetting = true;
+			objectType = @"date";
+			NSInteger theInteger = [fetchArg(argument) integerValue];
 			if ( ![argument caseInsensitiveCompare: @"-beforenow"] )
-				v200 = -v200;
-			v179 = [NSDate dateWithTimeIntervalSinceNow:v200];
+				theInteger = -theInteger;
+			objectArg = [NSDate dateWithTimeIntervalSinceNow:theInteger];
 			numArgsUsed += 2;
 		} else if ( ![argument caseInsensitiveCompare:@"-data"] )
 		{
-			v176 = 1;
-			v182 = @"data";
+			isSetting = true;
+			objectType = @"data";
 			numArgsUsed += 2;
-			NSString *v201 = fetchArg(argument);
-			if ( ![[NSFileManager defaultManager] fileExistsAtPath:v201] )
+			NSString *dataPath = fetchArg(argument);
+			if ( ![[NSFileManager defaultManager] fileExistsAtPath:dataPath] )
 			{
 				fprintf(
 						stderr,
 						"Error: File with data not found at path: %s. Bailing.\n",
-						[v201 UTF8String]);
+						[dataPath UTF8String]);
 				exit(-1);
 			}
-			v179 = [NSData dataWithContentsOfFile:v201];
-			if ( !v179 )
+			objectArg = [NSData dataWithContentsOfFile:dataPath];
+			if ( !objectArg )
 			{
 				fprintf(
 						stderr,
 						"Error: No data available at path: %s. Bailing.\n",
-						[v201 UTF8String]);
+						[dataPath UTF8String]);
 				exit(-1);
 			}
 		} else if ( ![argument caseInsensitiveCompare:@"-convert"] )
 		{
-			NSString* v202 = fetchArg(argument);
-			if ( ![v202 caseInsensitiveCompare:@"xml1"] )
-			{
-				v175 = 1;
-			} else if ( ![v202 caseInsensitiveCompare:@"binary1"])
-			{
-				v175 = 2;
-			} else if ( ![v202 caseInsensitiveCompare:@"json"])
-			{
-				v175 = 3;
-			} else	{
+			NSString* format = fetchArg(argument);
+			if ( ![format caseInsensitiveCompare:@"xml1"] )
+				plistFormat = 1;
+			else if ( ![format caseInsensitiveCompare:@"binary1"])
+				plistFormat = 2;
+			else if ( ![format caseInsensitiveCompare:@"json"])
+				plistFormat = 3;
+			else	{
 				fprintf(
 						stderr,
 						"Error: Unrecognized conversion format (%s). Please use xml"
 						"1, binary1 or json. Bailing.\n",
-						[v202 UTF8String]);
+						[format UTF8String]);
 				exit(-1);
 			}
 			numArgsUsed += 2;
@@ -498,11 +466,11 @@ int main(int argc, const char **argv, const char **envp)
 			if ( useDebug )
 				printf("Unrecognized flag: %s. Using as key\n", [argument UTF8String]);
 
-			[keyArray addObject:[argument substringFromIndex:1]];
+			[keyPath addObject:[argument substringFromIndex:1]];
 			numArgsUsed++;
 		}
 	}
-	if ( v176 && v177 )
+	if ( isSetting && isRemoving )
 	{
 		fwrite("ERROR: You cannot set and remove in the same action. Bailing.\n", 1u, 0x3Eu, stderr);
 		exit(-1);
@@ -522,7 +490,7 @@ int main(int argc, const char **argv, const char **envp)
 		if ( ![argument caseInsensitiveCompare:@"-create"] )
 		{
 			errorOut=true;
-			int v213=0;
+			int numPlists=0;
 			for (NSString *path in filePaths) {
 				if ( [[NSFileManager defaultManager] fileExistsAtPath:path] )
 				{
@@ -535,10 +503,10 @@ int main(int argc, const char **argv, const char **envp)
 					{
 						printf("Created new property list at %s\n", [path UTF8String]);
 					}
-					v213++;
+					numPlists++;
 				}
 			}
-			printf("Created %d new property list[s]\n", v213);
+			printf("Created %d new property list[s]\n", numPlists);
 			continue;
 		}
 		if ( ![argument caseInsensitiveCompare:@"-dump"] )
@@ -561,12 +529,12 @@ int main(int argc, const char **argv, const char **envp)
 		{
 			errorOut=true;
 			for (NSString *path in filePaths) {
-				CFPropertyListRef v254 = readPropertyList(path);
-				if ( v254 )
+				CFPropertyListRef plist = readPropertyList(path);
+				if ( plist )
 				{
 					if ( useVerbose )
 						showPath(path);
-					puts([[JSONHelper jsonWithDict:v254] UTF8String]);
+					puts([[JSONHelper jsonWithDict:plist] UTF8String]);
 				}
 			}
 			continue;
@@ -601,12 +569,12 @@ int main(int argc, const char **argv, const char **envp)
 		{
 			errorOut=true;
 			for (NSString *path in filePaths) {
-				CFPropertyListRef v287 = readPropertyList(path);
-				if ( v287 )
+				CFPropertyListRef plist = readPropertyList(path);
+				if ( plist )
 				{
 					if ( [[[path pathExtension] uppercaseString] isEqualToString:@"PLIST"] )
 					{
-						WriteMyPropertyListToFile(v287, [NSURL fileURLWithPath:[path stringByAppendingPathExtension:@"bak"]]);
+						WriteMyPropertyListToFile(plist, [NSURL fileURLWithPath:[path stringByAppendingPathExtension:@"bak"]]);
 					}
 				}
 			}
@@ -619,25 +587,26 @@ int main(int argc, const char **argv, const char **envp)
 			errorOut=true;
 			int convertedFilesCount=0;
 			for (NSString *path in filePaths) {
-				CFPropertyListRef v300 = readPropertyList(path);
-				if ( v300 )
+				CFPropertyListRef plist = readPropertyList(path);
+				if ( plist )
 				{
-					if ( v175 == 1 )
+					if ( plistFormat == 1 )
 					{
-						WriteMyPropertyListToFile(v300, [NSURL fileURLWithPath:path]);
+						WriteMyPropertyListToFile(plist, [NSURL fileURLWithPath:path]);
 					}
-					else if ( v175 == 2 )
+					else if ( plistFormat == 2 )
 					{
-						WriteMyPropertyListToBinaryFile(v300, [NSURL fileURLWithPath:path]);
+						WriteMyPropertyListToBinaryFile(plist, [NSURL fileURLWithPath:path]);
 					}
-					else if ( v175 == 3 )
+					else if ( plistFormat == 3 )
 					{
-						NSString *json = [JSONHelper jsonWithDict:v300];
+						NSString *json = [JSONHelper jsonWithDict:plist];
 						if ( !json )
 							continue;
 						json = [json stringByAppendingString:@"\n"];
-						if ( ![json writeToFile:[[path stringByDeletingPathExtension] stringByAppendingPathExtension:@"json"] atomically:YES encoding:4 error:&v167])
-							fprintf(stderr, "Error writing json file: %s\n", [[v167 localizedDescription] UTF8String]);
+						NSError *error;
+						if ( ![json writeToFile:[[path stringByDeletingPathExtension] stringByAppendingPathExtension:@"json"] atomically:YES encoding:4 error:&error])
+							fprintf(stderr, "Error writing json file: %s\n", [[error localizedDescription] UTF8String]);
 					}
 
 					convertedFilesCount++;
@@ -649,9 +618,9 @@ int main(int argc, const char **argv, const char **envp)
 				}
 			}
 			char *fileFormat = "XML";
-			if ( v175 == 2 )
+			if ( plistFormat == 2 )
 				fileFormat = "binary";
-			else if ( v175 == 3 )
+			else if ( plistFormat == 3 )
 				fileFormat = "json";
 			printf("Converted %d files to %s format\n", convertedFilesCount, fileFormat);
 		}
@@ -659,59 +628,59 @@ int main(int argc, const char **argv, const char **envp)
 	if (errorOut)
 		exit(1);
 
+	bool readingKey=false;
 	for (NSString *argument in args) {
-		if ( v186 )
+		if ( readingKey )
 		{
-			[keyArray addObject:argument];
-			v186 = 0;
+			[keyPath addObject:argument];
+			readingKey = false;
 		} else if ( ![argument caseInsensitiveCompare:@"-key"] || ![argument caseInsensitiveCompare:@"-set"] )
 		{
-				v186 = 1;
+				readingKey = true;
 		}
 	}
 	if ( rmArg )
-		[keyArray addObject:rmArg];
-	id v187 = 0;
-	if ( [keyArray count] )
+		[keyPath addObject:rmArg];
+	id lastKey = 0;
+	if ( [keyPath count] )
 	{
-		v187 = [[keyArray lastObject] retain];
-		[keyArray removeLastObject];
+		lastKey = [[keyPath lastObject] retain];
+		[keyPath removeLastObject];
 	}
 	if ( useDebug )
 	{
-		printf("Using key array [%s]\n", [[keyArray componentsJoinedByString:@" > "] UTF8String]);
+		printf("Using key array [%s]\n", [[keyPath componentsJoinedByString:@" > "] UTF8String]);
 	}
 	if ( useDebug )
 	{
-		printf("Using last key %s\n", [v187 UTF8String]);
+		printf("Using last key %s\n", [lastKey UTF8String]);
 	}
 	for (NSString *path in filePaths) {
 		if ( useDebug )
 		{
 			printf("\nStarting file %s\n", [path UTF8String]);
 		}
-		CFPropertyListRef v323 = readPropertyList(path);
-		if ( useDebug && !v323 )
+		CFPropertyListRef propertyList = readPropertyList(path);
+		if ( useDebug && !propertyList )
 		{
 			printf("Property list was not read in properly from %s\n", [path UTF8String]);
 		}
-		if ( v323 )
+		if ( propertyList )
 		{
-			if ( v176 || v177 )
+			if ( isSetting || isRemoving )
 			{
 				if ( useVerbose )
 					showPath(path);
-				id v324 = descend(v323, keyArray);
-				if ( [v324 isKindOfClass:[NSDictionary class]] || [v324 isKindOfClass:[NSArray class]]) 
+				id currentContainer = descend(propertyList, keyPath);
+				if ( [currentContainer isKindOfClass:[NSDictionary class]] || [currentContainer isKindOfClass:[NSArray class]]) 
 				{
-					v325 = v324;
-					if ( v177 )
+					if ( isRemoving )
 					{
-						if ( v187 )
+						if ( lastKey )
 						{
-							printf("Removing key %s from file %s\n", [v187 UTF8String], [path UTF8String]);
-							[v325 removeObjectForKey:v187];
-							WriteMyPropertyListToFile(v323, [NSURL fileURLWithPath:path]);
+							printf("Removing key %s from file %s\n", [lastKey UTF8String], [path UTF8String]);
+							[currentContainer removeObjectForKey:lastKey];
+							WriteMyPropertyListToFile(propertyList, [NSURL fileURLWithPath:path]);
 						}
 						else
 						{
@@ -720,14 +689,14 @@ int main(int argc, const char **argv, const char **envp)
 					}
 					else
 					{
-						if ( !v179 )
+						if ( !objectArg )
 						{
-							if ( !v182 )
-								v182 = @"string";
-							v329 = [args filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF contains[cd] %@", CFSTR("-setvalue")]];
-							NSArray<NSString*> *v83 = [args filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF contains[cd] %@", CFSTR("-value")]];
-							v329 = [v329 arrayByAddingObjectsFromArray:v83];
-							if ( ![v329 count] )
+							if ( !objectType )
+								objectType = @"string";
+							NSArray *setValueArgs = [args filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF contains[cd] %@", CFSTR("-setvalue")]];
+							NSArray *valueArgs = [args filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"SELF contains[cd] %@", CFSTR("-value")]];
+							setValueArgs = [setValueArgs arrayByAddingObjectsFromArray:valueArgs];
+							if ( ![setValueArgs count] )
 							{
 								fwrite(
 										"Error: could not recover setting for setvalue (-setvalue not found). Bailing.\n",
@@ -736,8 +705,8 @@ int main(int argc, const char **argv, const char **envp)
 										stderr);
 								exit(-1);
 							}
-							v330 = [v329 lastObject];
-							if ( [args indexOfObject:v330]  == 0x7FFFFFFF )
+							id lastSetValueArg = [setValueArgs lastObject];
+							if ( [args indexOfObject:lastSetValueArg]  == 0x7FFFFFFF )
 							{
 								fwrite(
 										"Error: could not recover setting for setvalue (setvalue object not found). Bailing.\n",
@@ -746,8 +715,8 @@ int main(int argc, const char **argv, const char **envp)
 										stderr);
 								exit(-1);
 							}
-							NSUInteger v331 = [args indexOfObject:v330] + 1;
-							if ( [args count] < v331 )
+							NSUInteger objectIndex = [args indexOfObject:lastSetValueArg] + 1;
+							if ( [args count] < objectIndex )
 							{
 								fwrite(
 										"Error: could not recover setting for setvalue (value not provided). Bailing.\n",
@@ -756,93 +725,93 @@ int main(int argc, const char **argv, const char **envp)
 										stderr);
 								exit(-1);
 							}
-							v181 = [args objectAtIndex:v331];
-							v179 = objectOfType(v182, v181);
+							objectArg = objectOfType(objectType, [args objectAtIndex:objectIndex]);
 						}
-						if ( v180 )
+						if ( addingArray )
 						{
-							if ( v179 )
+							if ( objectArg )
 							{
-								[keyArray addObject:v187];
-								v332 = descend(v323, keyArray);
-								if ( v332 )
+								[keyPath addObject:lastKey];
+								id objectAtPath = descend(propertyList, keyPath);
+								if ( objectAtPath )
 								{
-									if ( [v332 isKindOfClass:[NSArray class]] ) 
+									if ( [objectAtPath isKindOfClass:[NSArray class]] ) 
 									{
-										[v332 addObject:v179];
-										printf("Adding new array value to keypath \"%s\" in file %s\n", [[keyArray componentsJoinedByString:@" > "] UTF8String], [path UTF8String]);
-										WriteMyPropertyListToFile(v323, [NSURL fileURLWithPath:path]);
+										[objectAtPath addObject:objectArg];
+										printf("Adding new array value to keypath \"%s\" in file %s\n", [[keyPath componentsJoinedByString:@" > "] UTF8String], [path UTF8String]);
+										WriteMyPropertyListToFile(propertyList, [NSURL fileURLWithPath:path]);
 									}
 									else
 									{
-										fprintf(stderr, "Error: Array not found at keypath \"%s\" in file %s\n", [[keyArray componentsJoinedByString:@" > "] UTF8String], [path UTF8String]);
+										fprintf(stderr, "Error: Array not found at keypath \"%s\" in file %s\n", [[keyPath componentsJoinedByString:@" > "] UTF8String], [path UTF8String]);
 									}
 								}
 								else
 								{
-									fprintf(stderr, "Error: Object not found at keypath \"%s\" in file %s\n", [[keyArray componentsJoinedByString:@" > "] UTF8String], [path UTF8String]);
+									fprintf(stderr, "Error: Object not found at keypath \"%s\" in file %s\n", [[keyPath componentsJoinedByString:@" > "] UTF8String], [path UTF8String]);
 								}
 							}
 							else
 							{
-								fprintf(stderr, "Error: Cannot add nil value to array at keypath \"%s\" for file %s\n", [[keyArray componentsJoinedByString:@" > "] UTF8String], [path UTF8String]);
+								fprintf(stderr, "Error: Cannot add nil value to array at keypath \"%s\" for file %s\n", [[keyPath componentsJoinedByString:@" > "] UTF8String], [path UTF8String]);
 							}
 						}
-						else if ( v179 )
+						else if ( objectArg )
 						{
-							if ( !v187 )
+							if ( !lastKey )
 							{
 								fwrite("Error: No key or keypath to set value. Bailing.\n", 1u, 0x30u, stderr);
 								exit(-1);
 							}
-							if ( [v325 isKindOfClass:[NSMutableDictionary class]]
-									|| [v325 isKindOfClass:[NSMutableArray class]] )
+							if ( [currentContainer isKindOfClass:[NSMutableDictionary class]]
+									|| [currentContainer isKindOfClass:[NSMutableArray class]] )
 							{
-								[v325 setObject:v179 forKey:v187];
-								printf("Writing new value for %s to %s\n", [v187 UTF8String], [path UTF8String]);
-								WriteMyPropertyListToFile(v323, [NSURL fileURLWithPath:path]);
+								[currentContainer setObject:objectArg forKey:lastKey];
+								printf("Writing new value for %s to %s\n", [lastKey UTF8String], [path UTF8String]);
+								WriteMyPropertyListToFile(propertyList, [NSURL fileURLWithPath:path]);
 							}
 							else
 							{
-								fprintf(stderr, "Error: Dictionary or array not found at keypath \"%s\" in file %s\n", [[keyArray componentsJoinedByString:@" > "] UTF8String], [path UTF8String]);
+								fprintf(stderr, "Error: Dictionary or array not found at keypath \"%s\" in file %s\n", [[keyPath componentsJoinedByString:@" > "] UTF8String], [path UTF8String]);
 							}
 						}
 						else
 						{
-							fprintf(stderr, "Error: Cannot add nil value to dictionary at keypath \"%s\" for file %s\n", [[keyArray componentsJoinedByString:@" > "] UTF8String], [path UTF8String]);
+							fprintf(stderr, "Error: Cannot add nil value to dictionary at keypath \"%s\" for file %s\n", [[keyPath componentsJoinedByString:@" > "] UTF8String], [path UTF8String]);
 						}
 					}
 				}
 				else
 				{
-					fprintf(stderr, "Error: Object at key path is not a dictionary [%s]\n", [[[v324 class] description] UTF8String]);
-					fprintf(stderr, "       Dictionary required at key path %s\n", [[keyArray componentsJoinedByString:@" > "] UTF8String]);
+					fprintf(stderr, "Error: Object at key path is not a dictionary [%s]\n", [[[currentContainer class] description] UTF8String]);
+					fprintf(stderr, "       Dictionary required at key path %s\n", [[keyPath componentsJoinedByString:@" > "] UTF8String]);
 				}
 			}
 			else
 			{
-				v326 = keyArray;
-				if ( v187 )
-					v326 = [keyArray arrayByAddingObject:v187];
-				v327 = (void *)descend(v323, v326);
-				if ( v327 )
+				NSMutableArray *pathToPrint = [keyPath mutableCopy];
+				if ( lastKey )
+					[pathToPrint addObject:lastKey];
+
+				id objectAtPath = descend(propertyList, pathToPrint);
+				if ( objectAtPath )
 				{
 					if ( useVerbose )
 						showPath(path);
 					if ( useVerbose )
 					{
-						printf("[%s ->] ", [[v326 componentsJoinedByString:@" > "] UTF8String]);
+						printf("[%s ->] ", [[pathToPrint componentsJoinedByString:@" > "] UTF8String]);
 					}
-					puts([[v327 description] UTF8String]);
+					puts([[objectAtPath description] UTF8String]);
 				}
 				else
 				{
-					fprintf(stderr, "Error: Object not found at keypath \"%s\" in file %s\n", [[v326 componentsJoinedByString:@" > "] UTF8String], [path UTF8String]);
+					fprintf(stderr, "Error: Object not found at keypath \"%s\" in file %s\n", [[pathToPrint componentsJoinedByString:@" > "] UTF8String], [path UTF8String]);
 				}
 			}
 		}
 	}
-	[v187 release];
+	[lastKey release];
 	[pool drain];
 	return 0;
 }
