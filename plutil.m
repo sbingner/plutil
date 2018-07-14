@@ -16,9 +16,8 @@ bool useDebug;
 void WriteMyPropertyListToFile(NSDictionary* plist, NSURL* url)
 {
 	SInt32 error;
-	CFDataRef data;
 
-	data = CFPropertyListCreateXMLData(kCFAllocatorDefault, plist);
+	CFDataRef data = CFPropertyListCreateXMLData(kCFAllocatorDefault, plist);
 	CFURLWriteDataAndPropertiesToResource((CFURLRef)url, data, NULL, &error);
 	CFRelease(data);
 }
@@ -255,7 +254,7 @@ int main(int argc, const char **argv, const char **envp)
 	NSString *rmArg=nil;
 	id objectArg=nil;
 	bool addingArray=false;
-	NSString *objectType;
+	NSString *objectType=nil;
 
 	bool errorOut=false;
 	NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
