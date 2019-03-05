@@ -51,12 +51,16 @@ void WriteMyPropertyListToBinaryFile(CFPropertyListRef plist, NSURL *url)
 
 CFPropertyListRef readPropertyList(NSString *path)
 {
-	CFStringRef errorString;
+	CFErrorRef errorString;
 
 	path = [path stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
 	if ([[NSFileManager defaultManager] fileExistsAtPath:path]) {
 		NSData *plistData = [NSData dataWithContentsOfFile:path];
-		return CFPropertyListCreateFromXMLData(kCFAllocatorDefault, (CFDataRef)plistData, kCFPropertyListMutableContainers, &errorString);
+		if ([plistData isEqual:[NSData data]]) {
+			// Work with empty files
+			plistData = [@" " dataUsingEncoding:NSUTF8StringEncoding];
+		} 
+		return CFPropertyListCreateWithData(kCFAllocatorDefault, (CFDataRef)plistData, kCFPropertyListMutableContainers, NULL, &errorString);
 	} else {
 		fprintf(stderr, "Error: File not found at path %s\n", [path UTF8String]);
 		return NULL;
@@ -103,11 +107,18 @@ CFTypeRef descend(id container, NSMutableArray *path)
 	if ( ![path count] )
 		return (CFTypeRef)container;
 
-	if ( ![container isKindOfClass:[NSDictionary class]] ) {
-		if ( ![container isKindOfClass:[NSArray class]] )
+	if ( [container isKindOfClass:[NSDictionary class]] ) {
+		container = [container objectForKey:[path objectAtIndex:0]];
+	} else if ( [container isKindOfClass:[NSArray class]] ) {
+		NSUInteger index = [[path objectAtIndex:0] integerValue];
+		if (![[path objectAtIndex:0] isEqualToString:[NSString stringWithFormat:@"%lu", (unsigned long)index]] ||
+			[container count] <= index) {
 			return 0;
+		}
+		container = [container objectAtIndex:index];
+	} else {
+		return 0;
 	}
-	container = [container objectForKey:[path objectAtIndex:0]];
 	path = [NSMutableArray arrayWithArray:path];
 	[path removeObjectAtIndex:0];
 	return descend(container, path);
