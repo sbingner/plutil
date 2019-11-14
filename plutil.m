@@ -265,6 +265,7 @@ int main(int argc, const char **argv, const char **envp)
 	NSString *rmArg=nil;
 	id objectArg=nil;
 	bool addingArray=false;
+	bool converting=false;
 	NSString *objectType=nil;
 
 	bool errorOut=false;
@@ -346,12 +347,15 @@ int main(int argc, const char **argv, const char **envp)
 				|| ![argument caseInsensitiveCompare:@"-backup"] ) {
 			numArgsUsed++;
 		} else if ( ![argument caseInsensitiveCompare:@"-xml"] ) {
+			converting = true;
 			plistFormat = 1;
 			numArgsUsed++;
 		} else if ( ![argument caseInsensitiveCompare:@"-binary"] ) {
+			converting = true;
 			plistFormat = 2;
 			numArgsUsed++;
 		} else if ( ![argument caseInsensitiveCompare:@"-json"] ) {
+			converting = true;
 			plistFormat = 3;
 			numArgsUsed++;
 		} else if ( ![argument caseInsensitiveCompare:@"-key"]
@@ -416,6 +420,7 @@ int main(int argc, const char **argv, const char **envp)
 				exit(-1);
 			}
 		} else if ( ![argument caseInsensitiveCompare:@"-convert"] ) {
+			converting = true;
 			NSString* format = fetchArg(argument);
 			if ( ![format caseInsensitiveCompare:@"xml1"] )
 				plistFormat = 1;
@@ -433,6 +438,9 @@ int main(int argc, const char **argv, const char **envp)
 			}
 			numArgsUsed += 2;
 
+		} else if ( ![argument caseInsensitiveCompare:@"-o"] ) {
+			fprintf(stderr, "Error: setting output file is not supported, please copy then convert\n");
+			exit(-1);
 		} else {
 			if ( useDebug )
 				printf("Unrecognized flag: %s. Using as key\n", [argument UTF8String]);
@@ -443,19 +451,23 @@ int main(int argc, const char **argv, const char **envp)
 	}
 	if ( isSetting && isRemoving )
 	{
-		fwrite("ERROR: You cannot set and remove in the same action. Bailing.\n", 1u, 0x3Eu, stderr);
+		fprintf(stderr, "Error: You cannot set and remove in the same action. Bailing.\n");
 		exit(-1);
 	}
 	NSArray<NSString*> *filePaths = [args subarrayWithRange:NSMakeRange(numArgsUsed, [args count] - numArgsUsed)];
 	if ( ![filePaths count] )
 	{
-		puts("No file names specified. Bailing.");
+		fprintf(stderr, "Error: No file names specified. Bailing.\n");
 		exit(1);
 	}
 	if ( useDebug )
 	{
 		printf("Arguments: %s\n", [[dashedArgs componentsJoinedByString:@" "] UTF8String]);
 		printf("File paths: %s\n", [[filePaths componentsJoinedByString:@" "] UTF8String]);
+	}
+	if (converting && ([keyPath count] > 0 || [dashedArgs count] > 1)) {
+		fprintf(stderr, "Error: No dashed arguments are accepted with -convert\n");
+		exit(1);
 	}
 	for (NSString *argument in dashedArgs) {
 		if ( ![argument caseInsensitiveCompare:@"-create"] ) {
