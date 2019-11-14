@@ -584,6 +584,7 @@ int main(int argc, const char **argv, const char **envp)
 			else if ( plistFormat == 3 )
 				fileFormat = "json";
 			printf("Converted %d files to %s format\n", convertedFilesCount, fileFormat);
+                        exit(0);
 		}
 	}
 	if (errorOut)

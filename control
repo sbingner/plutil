@@ -1,7 +1,7 @@
 Package: com.bingner.plutil
 Name: plutil
 Depends: firmware (>=2.0)
-Version: 0.2.0
+Version: 0.2.1
 Architecture: iphoneos-arm
 Description: plutil as from erica sadun
 Maintainer: Samuel Bingner
